@@ -1,0 +1,11 @@
+.secret
+.env
+*.key
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# skill output, written into whatever directory you run from
+runs/
+evidence/
+sweep.json

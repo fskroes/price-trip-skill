@@ -1,0 +1,24 @@
+{
+  "name": "price-trip-skill",
+  "owner": {
+    "name": "fskroes",
+    "url": "https://github.com/fskroes"
+  },
+  "metadata": {
+    "description": "Marketplace hosting the price-trip planning plugin."
+  },
+  "plugins": [
+    {
+      "name": "price-trip",
+      "description": "Cost a real trip from live prices. Sweeps one-way and mixed-airport fares, flexes both legs by three days, audits the route timetable, prices beds and ground transport, and publishes a line-by-line breakdown.",
+      "version": "0.2.1",
+      "author": {
+        "name": "fskroes",
+        "url": "https://github.com/fskroes"
+      },
+      "source": "./",
+      "category": "productivity",
+      "homepage": "https://github.com/fskroes/price-trip-skill"
+    }
+  ]
+}
