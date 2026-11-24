@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sweep live Ryanair fares. No API key needed.
+USAGE = """Sweep live Ryanair fares. No API key needed.
 
 Four modes:
 
@@ -64,7 +64,7 @@ def round_trip(origin, out_date, back_date):
         outboundDepartureDateTo=out_date,
         inboundDepartureDateFrom=back_date,
         inboundDepartureDateTo=back_date,
-        limit=16,  # hard maximum; 17+ returns InvalidLimit
+        limit=16,
     )
 
 
@@ -103,7 +103,6 @@ def cmd_roundtrip(args):
 
 
 def cmd_combo(args):
-    """Out of any home airport, back into any home airport. The big saving."""
     home = set(args.home)
 
     cheapest_out = {}
@@ -150,11 +149,6 @@ def date_span(centre, span):
 
 
 def cheapest_leg(pairs, keep):
-    """pairs: (origin, date). keep: set of acceptable arrival airports.
-
-    Returns {date: (price, origin, arrival, dep_time, arr_time)} — the cheapest
-    qualifying flight on each date, across every origin given.
-    """
     best = {}
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = pool.map(lambda p: (p[1], one_way(p[0], p[1]), p[0]), pairs)
@@ -172,23 +166,16 @@ def cheapest_leg(pairs, keep):
 
 
 def cmd_flex(args):
-    """Price every date pair within +/- span days of both legs.
-
-    The requested dates are almost never the cheapest ones. This finds out how
-    much the calendar is costing, without leaving the week.
-    """
     dests = set(args.dests)
     home = set(args.home)
     out_dates = date_span(args.out, args.span)
     back_dates = date_span(args.back, args.span)
 
     def usable(od, bd):
-        """A date pair the traveller would actually accept."""
         nights = (datetime.date.fromisoformat(bd)
                   - datetime.date.fromisoformat(od)).days
         if not args.min_nights <= nights <= args.max_nights:
             return 0
-        # An occasion anchors the trip: be there that whole day.
         if args.must_include and not (od <= args.must_include < bd):
             return 0
         return nights
@@ -204,7 +191,6 @@ def cmd_flex(args):
         print("  (no flights found — check the --to codes)")
         return
 
-    # The grid. Rows are outbound dates, columns are return dates.
     print(f"\n=== total return fare, out (rows) x back (columns)")
     print(" " * 13 + "".join(f"{d[5:]:>9}" for d in back_dates))
     cheapest, requested = None, None
@@ -247,7 +233,7 @@ def cmd_flex(args):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__,
+    p = argparse.ArgumentParser(description=USAGE,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("mode", choices=["oneway", "roundtrip", "combo", "flex"])
     p.add_argument("--from", dest="origins", required=True,
