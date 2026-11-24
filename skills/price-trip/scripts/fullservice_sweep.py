@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sweep live fares for full-service carriers (KLM, Swiss, Lufthansa, BA, ...).
+USAGE = """Sweep live fares for full-service carriers (KLM, Swiss, Lufthansa, BA, ...).
 
 The companion to ryanair_sweep.py. That script owns the low-cost carriers, which
 sell direct and appear in no neutral pipe. This one owns everything that files
@@ -66,11 +66,8 @@ SCRAPPA_HOST = "https://scrappa.co"
 AFKLM_HOST = "https://api.airfranceklm.com"
 THREADS = 8
 
-# Scrappa sits behind Cloudflare, which rejects urllib's default User-Agent with
-# a 403 "error code: 1010" (banned browser signature). Any real UA string passes.
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) price-trip/1.0"
 
-# Live-fare providers, in the order you should reach for them.
 PROVIDERS = {
     "scrappa": {"env": "SCRAPPA_API_KEY", "cost": 0.0,  "note": "500 credits/month, recurring, no card"},
     "afklm":   {"env": "AFKLM_API_KEY",   "cost": 0.0,  "note": "5,000 calls/day, but AF/KL flights only"},
@@ -79,19 +76,7 @@ PROVIDERS = {
 }
 
 
-# ---------------------------------------------------------------- http
-
-
 class FetchFailed(RuntimeError):
-    """The provider did not answer. Never an empty result.
-
-    A 503 and a day with no flights leave the wire as different bytes, and they
-    have to stay different objects. The moment a failed fetch is allowed to
-    answer [], the caller cannot tell "nothing flies that day" from "we could not
-    look", and every guard downstream reads a confident zero. That is the exact
-    failure this tool was written to stop, so it is stopped here, at the
-    boundary, and not one layer later.
-    """
 
     def __init__(self, url, detail):
         self.host = urllib.parse.urlsplit(url).netloc
@@ -130,11 +115,7 @@ def _post_json(url, payload, headers=None, timeout=45):
         return {"__error__": str(e)}
 
 
-# ---------------------------------------------------------------- providers
-
-
 def tp_prices(origin, dest, out_month, back_month, currency, token, direct_only):
-    """Travelpayouts v3. Cached, all carriers, free. Returns list of dicts."""
     q = {
         "origin": origin,
         "destination": dest,
@@ -158,7 +139,6 @@ def tp_prices(origin, dest, out_month, back_month, currency, token, direct_only)
 
 def duffel_search(origin, dest, out_date, back_date, cabin, adults, token,
                   max_connections=None, timeout_ms=20000):
-    """One Duffel offer request. Live, bookable. Returns the cheapest offer or None."""
     slices = [{"origin": origin, "destination": dest, "departure_date": out_date}]
     if back_date:
         slices.append({"origin": dest, "destination": origin, "departure_date": back_date})
@@ -186,7 +166,6 @@ def duffel_search(origin, dest, out_date, back_date, cabin, adults, token,
 
 def ignav_search(origin, dest, out_date, back_date, cabin, adults, key,
                  direct_only=False, raw=False):
-    """One Ignav fare search. Live prices + booking links, 1,000 free requests."""
     path = "/api/fares/round-trip" if back_date else "/api/fares/one-way"
     payload = {"origin": origin, "destination": dest, "departure_date": out_date,
                "adults": adults, "cabin_class": cabin}
@@ -216,21 +195,12 @@ def _scrappa_url(origin, dest, out_date, back_date, cabin, adults,
     if back_date:
         q["return_date"] = back_date
     if direct_only:
-        # The API validates this: any | nonstop | one_or_fewer | two_or_fewer.
-        # Passing a number is accepted and then silently ignored.
         q["max_stops"] = "nonstop"
     return f"{SCRAPPA_HOST}{path}?" + urllib.parse.urlencode(q)
 
 
 def scrappa_search(origin, dest, out_date, back_date, cabin, adults, key,
                    direct_only=False, raw=False, currency="EUR", market="nl"):
-    """One Scrappa fare search. Google Flights data, 500 credits/month, no card.
-
-    On the round-trip endpoint the returned price is the FULL round-trip total for
-    that outbound option, and return_legs is empty — Google prices the trip at
-    outbound selection, before you have picked a return. So one call per date pair
-    prices the whole return, which is why grids run on round-trip, not two one-ways.
-    """
     url = _scrappa_url(origin, dest, out_date, back_date, cabin, adults,
                        direct_only, currency, market)
     body = _get_json_or_fail(url, {"X-API-KEY": key})
@@ -245,15 +215,6 @@ def scrappa_search(origin, dest, out_date, back_date, cabin, adults, key,
 
 def scrappa_options(origin, dest, out_date, cabin, adults, key,
                     currency="EUR", market="nl"):
-    """Every offer on one date, not just the winner. Same credit, more evidence.
-
-    The cheapest fare cannot say why it is the cheapest fare. Fifteen offers and
-    none of them nonstop is a closed day; one offer at half the price is an open
-    one. `schedule_guard.py` reads that difference, so keep the whole list.
-
-    Raises FetchFailed when the provider does not answer. An empty list here
-    means the provider answered and had nothing, which is a fact about flights.
-    """
     url = _scrappa_url(origin, dest, out_date, None, cabin, adults,
                        False, currency, market)
     body = _get_json_or_fail(url, {"X-API-KEY": key})
@@ -316,7 +277,6 @@ def _afklm_conn(origin, dest, dep, interval=None):
 
 def afklm_search(origin, dest, out_date, back_date, cabin, adults, key,
                  direct_only=False, raw=False):
-    """One AF-KLM Open Data priced-offer search. AF/KL-marketed flights only."""
     conns = [_afklm_conn(origin, dest, out_date)]
     if back_date:
         conns.append(_afklm_conn(dest, origin, back_date))
@@ -345,7 +305,6 @@ def afklm_search(origin, dest, out_date, back_date, cabin, adults, key,
 
 
 def afklm_calendar(origin, dest, first, last, cabin, adults, key, raw=False):
-    """AF-KLM lowest-fare-offers: a whole date range in ONE call, not one per date."""
     payload = {"type": "DAY",
                "commercialCabins": ["ECONOMY" if cabin == "economy" else cabin.upper()],
                "passengerCount": {"ADT": adults},
@@ -370,7 +329,6 @@ def afklm_calendar(origin, dest, first, last, cabin, adults, key, raw=False):
 
 
 def mode_calendar(a):
-    """One call per route for the whole window. AF-KLM only."""
     if a.provider != "afklm":
         raise SystemExit("calendar mode is AF-KLM only — add --provider afklm.")
     cred, spec = _live_auth(a)
@@ -394,11 +352,6 @@ def mode_calendar(a):
 
 
 def _get_json_or_fail(url, headers=None, timeout=45):
-    """GET that raises FetchFailed. A search that did not happen is not a result.
-
-    A rejected key still exits the process. That is not a transient failure, and
-    every remaining call in the sweep would fail the same way.
-    """
     req = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -414,7 +367,6 @@ def _get_json_or_fail(url, headers=None, timeout=45):
 
 
 def _first_list(body):
-    """Ignav's envelope is undocumented. Find the first list of fare-shaped dicts."""
     if isinstance(body, list):
         return body
     for k in ("fares", "data", "results", "offers", "itineraries", "flights"):
@@ -490,9 +442,6 @@ def _offer_summary(o, out_date, back_date):
     }
 
 
-# ---------------------------------------------------------------- helpers
-
-
 def _dates_around(anchor, span):
     d = datetime.strptime(anchor, "%Y-%m-%d").date()
     return [(d + timedelta(days=i)).isoformat() for i in range(-span, span + 1)]
@@ -527,9 +476,6 @@ def _grid_print(out_dates, back_dates, cell, cur, min_nights, max_nights):
                 best = (v, od, bd, n)
         print(row)
     return best
-
-
-# ---------------------------------------------------------------- modes
 
 
 def mode_grid(a):
@@ -603,7 +549,6 @@ def mode_grid(a):
 
 
 def _live_auth(a):
-    """Resolve the live-fare provider and its credential, or explain what is missing."""
     spec = PROVIDERS[a.provider]
     cred = os.environ.get(spec["env"])
     if not cred:
@@ -689,9 +634,6 @@ def mode_oneway(a):
             f"oneway keeps every offer, and only scrappa returns them. "
             f"Run --provider scrappa (free), or use `verify` on {a.provider}.")
 
-    # Keep every offer, not the winner. Same credit spend, and it is the only way
-    # to see that a date has fifteen offers and no nonstop. Cheapest-only output
-    # once sent two travellers to another country's airport for no reason.
     def run(j):
         o, d, od, _ = j
         return j, scrappa_options(o, d, od, a.cabin, a.adults, cred, a.currency)
@@ -726,12 +668,6 @@ def mode_oneway(a):
 
 
 def _audit(rows):
-    """Run the schedule guard on this sweep, now, before anyone reads the prices.
-
-    Not a separate step the caller may forget. The Glasgow miss (Nov 2026) was
-    provable from the sweep's own output at zero extra cost; what was missing was
-    the question, so the sweep asks it itself.
-    """
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from schedule_guard import audit_route, routes, widen
 
@@ -788,12 +724,9 @@ def mode_flex(a):
             print(f"\nThe dates you asked for are the cheapest cell in the window.")
 
 
-# ---------------------------------------------------------------- cli
-
-
 def main():
     p = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+        description=USAGE, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("mode", choices=["grid", "oneway", "flex", "verify", "calendar"])
     p.add_argument("--from", dest="origins", default="AMS",
                    help="comma-separated origin IATA codes (default AMS)")

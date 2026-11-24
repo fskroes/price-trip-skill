@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Catch a thin route before it becomes a wrong answer.
+USAGE = """Catch a thin route before it becomes a wrong answer.
 
 A low-cost carrier on a secondary base flies a route two or three days a week.
 Ask for a price on a day it does not fly, and nothing looks broken: a real fare
@@ -54,16 +54,12 @@ from datetime import date, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-EDGE_RATIO = 1.8   # a swing this big inside one window is a schedule, not a market
-FALLING = 0.80     # an edge day is only interesting if it undercuts its neighbour
-WEEK = 7           # days swept before a route's timetable counts as known
-
-
-# ---------------------------------------------------------------- reading
+EDGE_RATIO = 1.8
+FALLING = 0.80
+WEEK = 7
 
 
 def load_rows(path):
-    """Accept either {"rows": [...]} or a bare list. Both shapes exist in the wild."""
     with open(path) as fh:
         doc = json.load(fh)
     rows = doc.get("rows") if isinstance(doc, dict) else doc
@@ -86,7 +82,6 @@ def depart(opt):
 
 
 def routes(rows):
-    """Group the sweep by route, then by date. One dict per (origin, dest)."""
     out = {}
     for r in rows:
         key = (r.get("origin", "?"), r.get("dest", "?"))
@@ -101,18 +96,7 @@ def routes(rows):
     return out
 
 
-# ---------------------------------------------------------------- the checks
-
-
 def audit_route(origin, dest, days, ratio):
-    """Return (blocking, advisory) finding lists for one route.
-
-    The guard blocks on ignorance, never on thinness. A route that flies twice a
-    week is not a fault; not knowing which two days is. So once the sweep covers a
-    full week, the pattern is established and the same evidence stops blocking and
-    starts reporting. That makes the guard satisfiable: run the calendar sweep the
-    finding asks for, and the finding closes itself.
-    """
     block, warn = [], []
     dates = sorted(days)
     priced = [d for d in dates if days[d]["cheapest"] is not None]
@@ -156,9 +140,6 @@ def audit_route(origin, dest, days, ratio):
             f"{hi} — {days[hi]['cheapest'] / days[lo]['cheapest']:.1f}x inside one window"
             + (f", across {len(priced)} days swept" if known else "")))
 
-    # An edge day is the cheapest one about two thirds of the time by chance, so
-    # the edge alone says nothing. Warn only when the price is still FALLING as it
-    # leaves the window — that is the case where the floor really does sit outside.
     if len(priced) > 1 and lo in (priced[0], priced[-1]):
         inner = priced[1] if lo == priced[0] else priced[-2]
         if days[lo]["cheapest"] <= FALLING * days[inner]["cheapest"]:
@@ -171,7 +152,6 @@ def audit_route(origin, dest, days, ratio):
 
 
 def widen(dates):
-    """The calendar command that answers a finding: a full week each side."""
     d = [date.fromisoformat(x) for x in sorted(dates) if x != "?"]
     if not d:
         return "--first <date> --last <date>"
@@ -208,9 +188,6 @@ def mode_audit(a):
     print("No schedule problem found. Every route prices flat across the window, "
           "and no route loses its nonstop on any day swept.")
     return 0
-
-
-# ---------------------------------------------------------------- calendar
 
 
 def mode_calendar(a):
@@ -275,12 +252,9 @@ def mode_calendar(a):
     return 0
 
 
-# ---------------------------------------------------------------- cli
-
-
 def main():
     p = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+        description=USAGE, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="mode", required=True)
 
     au = sub.add_parser("audit", help="check a saved sweep for schedule gaps")
